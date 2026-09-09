@@ -1,0 +1,4 @@
+# core dependencies
+numpy
+pandas
+matplotlib
