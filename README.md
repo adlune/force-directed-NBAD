@@ -2,12 +2,6 @@
 
 A network behavior anomaly detection system that models traffic as a graph, applies a Fruchterman-Reingold force-directed simulation, and identifies attacks by monitoring the physical observables of the simulation.
 
-## General Information
-
-- **Version:** 0.1.0 (initial development)
-- **Date created:** 2026-09-02
-- **Status:** In active development
-
 ## Project Overview
 
 This project investigates whether force-directed graph algorithms can serve as the basis for a network behavior intrusion detection system.
