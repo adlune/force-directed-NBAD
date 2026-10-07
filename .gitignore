@@ -38,3 +38,6 @@ results/
 
 # README
 !README.md
+
+# pytest
+.pytest_cache/
