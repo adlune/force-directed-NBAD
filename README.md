@@ -13,11 +13,11 @@ Network traffic between hosts define a graph, IP addresses are nodes and communi
 
 When an attack happens, the graph structure changes abruptly. When a port scan happens, it creates a burst of new edges from a single source to many targets. When a DDoS attack happens, it funnels edges from many sources toward one victim. These structural changes disrupt the simulation's equilibrium, producing spikes in total system energy, node displacements, and delayed convergence. By tracking these simulation observables over time and comparing them to benign behavior, the system flags anomalous time windows.
 
-This approach is a form of novelty detection, which consists in using  a reference of normal behavior (assumed clean data) from traffic assumed to be benign, so that time windows that deviate from that (unknown data) are flagged. The method does not require labelled attack examples, but it does depend on a clean reference period. Labels are used only to evaluate the detector.
+This approach is a form of novelty detection, which consists of using a reference of normal behavior (assumed clean data) from traffic assumed to be benign, so that time windows that deviate from that (unknown data) are flagged. The method does not require labelled attack examples, but it does depend on a clean reference period. Labels are used only to evaluate the detector.
 
 ### Dataset
 
-This project uses the CICIDS2017 dataset from the University of New Brunswick along the Canadian Institute for Cybersecurity. It has labeled network flows over five days, covering benign traffic and multiple attack types.
+This project uses the CICIDS2017 dataset from the Canadian Institute for Cybersecurity at the University of New Brunswick. It has labeled network flows over five days, covering benign traffic and multiple attack types.
 
 Source: https://www.unb.ca/cic/datasets/ids-2017.html
 
@@ -39,26 +39,45 @@ $$
 
 Repulsion is strong when nodes are close and fade with distance, which keeps nodes from overlapping. Attraction behaves like a spring that grows stronger as connected nodes move apart, which keeps communicating hosts together. The constant $k$ is the ideal distance between nodes, computed from the area of the drawing frame.
 
+A third force, adapted from the "strong gravity" of ForceAtlas2 *(Jacomy et al., 2014)*, pulls every node toward the center of the frame with a strength proportional to its distance $r$ from the center:
+
+$$
+f_g(r) = g \, r
+$$
+
+Without this force, groups of hosts that don't communicate with the rest of the network would repel each other indefinitely and it would prevent the simulation from reaching equilibrium.
+
+#### How iterations work
+
+At each iteration every node moves a small step in the direction of its net force, with the step scaled to how strongly connected the node is so that busy hosts do not overshoot. The simulation converges when the largest remaining force on any node falls below a small fraction of $k$.
+
+## Example: one minute of benign traffic
+
+![Animation of the force-directed simulation of one minute of benign CICIDS2017 traffic, with the energy and residual force curves beside the layout](docs/figures/monday_1000.gif)
+
+The animation shows the simulation of the traffic captured between 10:00 and 10:01 on Monday, the benign baseline day of CICIDS2017. Each of the 277 nodes is a host, and node size grows with its number of connections. The layout settles into a few large hubs, internal hosts of the lab network, each surrounded by the external addresses that communicated only with it. The panels on the right track the energy above its final value and the largest remaining force on any node.
+
 ## Project Structure
 
 ```
 force-directed-NBAD/
-├── data/                      # CICIDS2017 CSV files (untracked)
+├── data/raw/                  # CICIDS2017 CSV files (untracked)
+├── docs/figures/              # Figures shown in this README
 ├── src/
-│   ├── graph_builder.py       # CSV to graph construction
-│   ├── force_simulation.py    # Force model and position updates
-│   ├── metrics.py             # Energy, displacement, convergence extraction
-│   ├── detector.py            # Anomaly flagging
-│   └── visualizer.py          # Animation of the simulation
-├── notebooks/
-│   ├── 01_data_exploration.ipynb
-│   ├── 02_baseline_simulation.ipynb
-│   ├── 03_attack_simulation.ipynb
-│   └── 04_detection_evaluation.ipynb
+│   ├── graph_builder.py       # CSV loading and graph construction per time window
+│   ├── force_simulation.py    # Force model, energy and position updates
+│   ├── example_graphs.py      # Small hand-built graphs with known layouts
+│   ├── visualizer.py          # Convergence plots and animation of the simulation
+│   ├── theme.py               # Shared visual style for figures
+│   ├── metrics.py             # Energy, displacement, convergence extraction (planned)
+│   └── detector.py            # Anomaly flagging (planned)
+├── notebooks/                 # Exploration and evaluation notebooks (planned)
 ├── tests/
-│   ├── test_forces.py         # Unit tests for force calculations
+│   ├── test_graph_builder.py  # Graph construction on a hand-made set of flows
+│   ├── test_forces.py         # Force formulas and the energy gradient
 │   └── test_convergence.py    # Two-node equilibrium and convergence on simple graphs
-├── results/                   # Output plots and metrics (untracked)
+├── results/                   # Output plots and animations (untracked)
+├── pytest.ini
 ├── requirements.txt
 ├── LICENSE
 └── README.md
@@ -72,15 +91,29 @@ Clone the repository and set up a Python virtual environment:
 git clone https://github.com/adlune/force-directed-NBAD.git
 cd force-directed-NBAD
 python -m venv .NBAD
-source .NBAD/bin/activate # Windows: source .NBAD/Scripts/Activate
+source .NBAD/bin/activate        # macOS and Linux
+source .NBAD/Scripts/activate    # Windows (Git Bash)
+.NBAD\Scripts\Activate.ps1       # Windows (PowerShell)
 pip install -r requirements.txt
 ```
 
-The CICIDS2017 dataset must be downloaded separately. Download `GeneratedLabelledFlows.zip` from the dataset page and place the CSV files from its `TrafficLabelling` folder into the `data/` directory.
+The CICIDS2017 dataset must be downloaded separately. Download `GeneratedLabelledFlows.zip` from the dataset page and place the CSV files from its `TrafficLabelling` folder into the `data/raw/` directory.
 
 ## Usage
 
-This project is in early development. Usage instructions and example workflows will be added as the implementation progresses through its development phases.
+Run the test suite:
+
+```bash
+python -m pytest
+```
+
+Generate the convergence figures and animations for a small example graph and for one window of benign traffic (Monday, 10:00). The output is written to `results/`:
+
+```bash
+python src/visualizer.py
+```
+
+Detection on attack traffic is not implemented yet.
 
 ## License
 
