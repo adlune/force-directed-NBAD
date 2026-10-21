@@ -121,8 +121,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contact Information
 
-- **Author:** Adrian Lara *[Undergraduate student in "Tecnologías para la Información en Ciencias" at Universidad Nacional Autónoma de México (UNAM)]*.
-- **Contact:** adrianlarasc@gmail.com
+- **Author:** Adrian Lara *[Undergraduate student in Information Technologies for Sciences at the National Autonomous University of Mexico (UNAM)]*.
+- **Contact:** contact@adrianlara.dev
 
 ## Acknowledgements
 
