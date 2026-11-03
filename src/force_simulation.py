@@ -38,9 +38,10 @@ def pairwise(positions, min_distance):
     return diff, dist
 
 
-def net_forces(positions, adjacency, k, min_distance, gravity=0.0):
+def net_forces(positions, diff, dist, adjacency, k, gravity=0.0):
     """
-    net force on every node.
+    net force on every node, given the difference vectors and distances
+    returned by pairwise.
 
     for each pair (v, u) we compute a signed magnitude along the unit vector
     from u to v: positive pushes v away from u, negative pulls v toward u.
@@ -50,8 +51,6 @@ def net_forces(positions, adjacency, k, min_distance, gravity=0.0):
     central gravity - gravity * x_v, a pull toward the origin that grows
     with distance (it keeps separate components from drifting apart).
     """
-    diff, dist = pairwise(positions, min_distance)
-
     # unit vectors from u toward v; on the diagonal diff is 0, so unit is 0
     unit = diff / dist[:, :, np.newaxis]
 
@@ -64,7 +63,7 @@ def net_forces(positions, adjacency, k, min_distance, gravity=0.0):
     return forces - gravity * positions
 
 
-def energy(positions, adjacency, k, min_distance, gravity=0.0):
+def energy(positions, dist, adjacency, k, gravity=0.0):
     """
     total energy:
       E = sum over edges of d**3 / (3k)  -  sum over pairs u < v of k**2 ln d
@@ -72,7 +71,6 @@ def energy(positions, adjacency, k, min_distance, gravity=0.0):
     each pair is counted once by keeping only the upper triangle of the
     distance table (row < column).
     """
-    _, dist = pairwise(positions, min_distance)
     rows, cols = np.triu_indices(len(positions), 1)
     d = dist[rows, cols]
     a = adjacency[rows, cols]
@@ -96,7 +94,7 @@ def residual_force(positions, forces, width, height):
     return np.max(np.linalg.norm(projected, axis=1))
 
 
-def stiffness(positions, adjacency, k, min_distance, gravity=0.0):
+def stiffness(dist, adjacency, k, gravity=0.0):
     """
     how stiff each node is: an upper estimate of the curvature of the energy
     around that node,
@@ -111,7 +109,6 @@ def stiffness(positions, adjacency, k, min_distance, gravity=0.0):
     stiff; a leaf is soft. for two nodes at distance k without gravity the
     stiffness is 2 + 1 = 3.
     """
-    _, dist = pairwise(positions, min_distance)
     repulsion = k**2 / dist**2
     np.fill_diagonal(repulsion, 0.0)
     springs = adjacency * 2 * dist / k
@@ -143,7 +140,8 @@ def move(positions, forces, temperature, width, height, step_size):
 
 def run_simulation(adjacency, width=1.0, height=1.0, c=0.3, positions=None,
                    initial_temperature=None, cooling=1.0, damping=0.9,
-                   gravity=1.0, tolerance=1e-3, max_iterations=10000, seed=0):
+                   gravity=1.0, tolerance=1e-3, max_iterations=10000, seed=0,
+                   record_history=True):
     """
     run the simulation until the residual force drops below tolerance * k,
     or until max_iterations is reached.
@@ -168,9 +166,14 @@ def run_simulation(adjacency, width=1.0, height=1.0, c=0.3, positions=None,
                          components settle at a distance of about c / sqrt(g)
                          from the center, whatever the number of nodes
     tolerance            convergence threshold as a fraction of k
+    record_history       keep the positions, energy, residual and temperature
+                         of every iteration (for plots and the animation).
+                         computing the energy at every iteration is costly,
+                         so long runs that only need the final state turn
+                         this off
 
     returns a dictionary with the final positions, k, whether it converged,
-    and the history of every iteration (for plots and the animation).
+    the number of iterations, the final energy, and the history if recorded.
     """
     n = len(adjacency)
     k = ideal_distance(n, width, height, c)
@@ -188,32 +191,43 @@ def run_simulation(adjacency, width=1.0, height=1.0, c=0.3, positions=None,
     history = {"positions": [], "energy": [], "residual": [], "temperature": []}
     converged = False
 
-    # the loop counter itself is not needed, so it is named _
-    for _ in range(max_iterations):
-        forces = net_forces(positions, adjacency, k, min_distance, gravity)
+    # iterations counts the layouts whose forces were evaluated, including
+    # the final one where convergence is detected
+    iterations = 0
+    while iterations < max_iterations:
+        iterations += 1
+
+        # one distance table per iteration, shared by the forces, the
+        # stiffness and (when recorded) the energy
+        diff, dist = pairwise(positions, min_distance)
+        forces = net_forces(positions, diff, dist, adjacency, k, gravity)
         residual = residual_force(positions, forces, width, height)
 
-        # record the state before moving, so entry i describes layout i
-        history["positions"].append(positions.copy())
-        history["energy"].append(
-            energy(positions, adjacency, k, min_distance, gravity))
-        history["residual"].append(residual)
-        history["temperature"].append(temperature)
+        if record_history:
+            # record the state before moving, so entry i describes layout i
+            history["positions"].append(positions.copy())
+            history["energy"].append(energy(positions, dist, adjacency, k, gravity))
+            history["residual"].append(residual)
+            history["temperature"].append(temperature)
 
         if residual < tolerance * k:
             converged = True
             break
 
         # stiff nodes (hubs) take small steps, soft nodes (leaves) large ones
-        step_size = damping / stiffness(positions, adjacency, k, min_distance,
-                                        gravity)
+        step_size = damping / stiffness(dist, adjacency, k, gravity)
         positions = move(positions, forces, temperature, width, height, step_size)
         temperature *= cooling
 
-    return {
+    # the energy of the final layout is computed once, whatever was recorded
+    _, dist = pairwise(positions, min_distance)
+    result = {
         "positions": positions,
         "k": k,
         "converged": converged,
-        "iterations": len(history["energy"]),
-        "history": {name: np.array(values) for name, values in history.items()},
+        "iterations": iterations,
+        "energy": energy(positions, dist, adjacency, k, gravity),
     }
+    if record_history:
+        result["history"] = {name: np.array(values) for name, values in history.items()}
+    return result
