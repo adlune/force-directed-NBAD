@@ -32,7 +32,7 @@ def test_two_connected_nodes_settle_at_distance_k(start_over_k):
 @pytest.mark.parametrize("seed", range(5))
 def test_two_cliques_converge_from_any_start(seed):
     # different seeds give different random starting layouts; with a stable
-    # damping and slow enough cooling, every one of them must converge
+    # damping, every one of them must converge
     result = run_simulation(two_cliques(size=5), seed=seed)
     assert result["converged"]
 

@@ -10,10 +10,8 @@ drawn with the shared look from theme.py:
 energy and residual force have different units and scales, so each gets its
 own panel instead of sharing one plot with two y-axes. the residual is shown
 divided by k on a logarithmic axis, next to the convergence threshold.
-in the layout, node size and shade both grow with the number of connections.
+in the layout, node size grows with the number of connections.
 """
-
-import sys
 
 import matplotlib
 matplotlib.use("Agg")   # draw to files only; no window is needed
@@ -65,9 +63,10 @@ def energy_gap(energy):
     return np.where(gap > 0, gap, np.nan)
 
 
-def draw_curves(ax_energy, ax_residual, result, tolerance=1e-3):
+def draw_curves(ax_energy, ax_residual, result):
     """draw the energy and residual curves; used by both figure types."""
     history = result["history"]
+    tolerance = result["tolerance"]
     iterations = np.arange(len(history["energy"]))
     residual_over_k = history["residual"] / result["k"]
 
@@ -202,4 +201,3 @@ if __name__ == "__main__":
     plot_convergence(result, out / "monday_1000_convergence.png", "Monday, 10:00 window")
     animate(result, window, out / "monday_1000.gif", "Monday, 10:00 window")
     print("monday 10:00:", status_text(result))
-    sys.exit(0)

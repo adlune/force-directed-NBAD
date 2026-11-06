@@ -17,7 +17,7 @@ array shapes used throughout (n = number of nodes):
 import numpy as np
 
 
-def ideal_distance(n_nodes, width, height, c=1.0):
+def ideal_distance(n_nodes, width, height, c=0.3):
     """k = c * sqrt(width * height / n_nodes), the ideal distance between nodes."""
     return c * np.sqrt(width * height / n_nodes)
 
@@ -139,9 +139,8 @@ def move(positions, forces, temperature, width, height, step_size):
 
 
 def run_simulation(adjacency, width=1.0, height=1.0, c=0.3, positions=None,
-                   initial_temperature=None, cooling=1.0, damping=0.9,
-                   gravity=1.0, tolerance=1e-3, max_iterations=10000, seed=0,
-                   record_history=True):
+                   damping=0.9, gravity=1.0, tolerance=1e-3,
+                   max_iterations=10000, seed=0, record_history=True):
     """
     run the simulation until the residual force drops below tolerance * k,
     or until max_iterations is reached.
@@ -150,13 +149,6 @@ def run_simulation(adjacency, width=1.0, height=1.0, c=0.3, positions=None,
                          than the frame, so weakly connected nodes are not
                          pushed against the walls
     positions            starting layout; random inside the frame if None
-    initial_temperature  largest first step; width / 10 if None, as in the
-                         original Fruchterman and Reingold paper
-    cooling              factor that multiplies the temperature each iteration.
-                         1.0 keeps it constant: with per-node steps the
-                         iteration is already stable, so the temperature only
-                         limits the large jumps of the first iterations, and
-                         letting it shrink to zero freezes the layout
     damping              each node's step is damping / stiffness_v. the step
                          is stable when the largest curvature of the rescaled
                          problem times damping is below 2; that curvature is
@@ -166,14 +158,15 @@ def run_simulation(adjacency, width=1.0, height=1.0, c=0.3, positions=None,
                          components settle at a distance of about c / sqrt(g)
                          from the center, whatever the number of nodes
     tolerance            convergence threshold as a fraction of k
-    record_history       keep the positions, energy, residual and temperature
-                         of every iteration (for plots and the animation).
+    record_history       keep the positions, energy and residual of every
+                         iteration (for plots and the animation).
                          computing the energy at every iteration is costly,
                          so long runs that only need the final state turn
                          this off
 
-    returns a dictionary with the final positions, k, whether it converged,
-    the number of iterations, the final energy, and the history if recorded.
+    returns a dictionary with the final positions, k, the tolerance, whether
+    it converged, the number of iterations, the final energy, and the history
+    if recorded.
     """
     n = len(adjacency)
     k = ideal_distance(n, width, height, c)
@@ -186,9 +179,14 @@ def run_simulation(adjacency, width=1.0, height=1.0, c=0.3, positions=None,
         positions = rng.uniform(-half, half, size=(n, 2))
     positions = np.array(positions, dtype=float)
 
-    temperature = width / 10 if initial_temperature is None else initial_temperature
+    # the temperature caps how far a node may move in one iteration, as in the
+    # original Fruchterman and Reingold paper (one tenth of the frame). it
+    # stays constant: the per-node step already keeps the iteration stable,
+    # so the cap only limits the large jumps of the first iterations, and
+    # letting it shrink to zero would freeze the layout
+    temperature = width / 10
 
-    history = {"positions": [], "energy": [], "residual": [], "temperature": []}
+    history = {"positions": [], "energy": [], "residual": []}
     converged = False
 
     # iterations counts the layouts whose forces were evaluated, including
@@ -208,7 +206,6 @@ def run_simulation(adjacency, width=1.0, height=1.0, c=0.3, positions=None,
             history["positions"].append(positions.copy())
             history["energy"].append(energy(positions, dist, adjacency, k, gravity))
             history["residual"].append(residual)
-            history["temperature"].append(temperature)
 
         if residual < tolerance * k:
             converged = True
@@ -217,13 +214,13 @@ def run_simulation(adjacency, width=1.0, height=1.0, c=0.3, positions=None,
         # stiff nodes (hubs) take small steps, soft nodes (leaves) large ones
         step_size = damping / stiffness(dist, adjacency, k, gravity)
         positions = move(positions, forces, temperature, width, height, step_size)
-        temperature *= cooling
 
     # the energy of the final layout is computed once, whatever was recorded
     _, dist = pairwise(positions, min_distance)
     result = {
         "positions": positions,
         "k": k,
+        "tolerance": tolerance,
         "converged": converged,
         "iterations": iterations,
         "energy": energy(positions, dist, adjacency, k, gravity),
