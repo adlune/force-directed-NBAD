@@ -8,13 +8,23 @@ Raw data is processed so each graph visualization is a time window (1 minute eac
 
 ## Model
 
-| Force | Acts between | Magnitude |
-|---|---|---|
-| Repulsion | every pair of nodes | $k^2/d$ |
-| Attraction | connected nodes | $d^2/k$ |
-| Gravity | each node and the center | $g\,r$ |
+```math
+\begin{aligned}
+F_{\text{repulsion}} &= \frac{k^2}{d} && \text{acts between every pair of nodes} \\[4pt]
+F_{\text{attraction}} &= \frac{d^2}{k} && \text{acts between connected nodes} \\[4pt]
+F_{\text{gravity}} &= g\,r && \text{acts between each node and the center}
+\end{aligned}
+```
 
 Where $d$ is the distance between two nodes, $r$ is the distance to the center, and $k$ is the ideal distance between nodes. The *gravity* term, borrowed from ForceAtlas2, keeps hosts that do not communicate with the rest of the network from drifting apart and affecting convergence.
+
+### Equilibrium as an energy valley
+
+There is no mass or velocity in the simulation. At every iteration each node simply takes a step in the direction of its force. Each force is minus the slope of an energy, so every step goes downhill, and the simulation is a form of gradient descent on the energy of the layout. Equilibrium, where every force is zero, is the bottom of a valley. Each node's step is scaled to how sharply the energy curves around it, which keeps the descent stable for busy hubs and single-link leaves alike.
+
+![Energy landscape of one node linked to two fixed nodes, with the steps of the simulation descending into a valley](docs/figures/energy_valley.png)
+
+The example has two valleys with a saddle point between them. The energy of a real window has many valleys, so different starting layouts can settle in slightly different equilibria.
 
 (not yet implemented) Attacks will change the shape and overall behavior of the traffic. The hypothesis is that these changes show up in the physics: a different energy at equilibrium, nodes that show unusual movement, and more iterations to settle. Measuring these numbers on a benign baseline and flagging numbers that deviate from it makes this a form of novelty detection.
 
@@ -41,6 +51,7 @@ The data comes from [CICIDS2017](https://www.unb.ca/cic/datasets/ids-2017.html).
 ```bash
 python -m pytest                # tests
 python src/visualizer.py        # example figures and animations in results/
+python src/energy_valley.py     # the energy valley figure above
 python src/run_windows.py data/raw/Monday-WorkingHours.pcap_ISCX.csv --start 10:00 --end 11:00
 ```
 
